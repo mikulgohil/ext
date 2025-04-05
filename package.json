@@ -6,7 +6,8 @@
   "publisher": "nextjs-component-generator",
   "icon": "icon.png",
   "engines": {
-    "vscode": "^1.80.0"
+    "vscode": "^1.80.0",
+    "node": ">=20.x"
   },
   "categories": [
     "Other"
