@@ -33,7 +33,17 @@ function getWebviewContent(webview, context) {
         
         <div class="input-group">
             <label for="prompt">Describe the component you want to create:</label>
-            <textarea id="prompt" placeholder="E.g., A responsive pricing card with a title, price, features list, and a call-to-action button."></textarea>
+            <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+                <textarea id="prompt" placeholder="E.g., A responsive pricing card with a title, price, features list, and a call-to-action button." style="flex-grow: 1;"></textarea>
+                <button id="formatDescriptionBtn" class="bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-4 rounded-md shadow-sm transition-colors" style="min-width: 120px; height: 40px; align-self: flex-start;">
+                    <span class="flex items-center justify-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v2H7a1 1 0 100 2h2v2a1 1 0 102 0v-2h2a1 1 0 100-2h-2V7z" clip-rule="evenodd" />
+                        </svg>
+                        Format
+                    </span>
+                </button>
+            </div>
         </div>
         
         <div class="input-group">
@@ -84,6 +94,7 @@ function getWebviewContent(webview, context) {
             
             // Elements
             const promptInput = document.getElementById('prompt');
+            const formatDescriptionBtn = document.getElementById('formatDescriptionBtn');
             const imageUploadInput = document.getElementById('imageUpload');
             const imagePreviewEl = document.getElementById('imagePreview');
             const previewImgEl = document.getElementById('previewImg');
@@ -166,6 +177,25 @@ function getWebviewContent(webview, context) {
                 resultEl.style.display = 'none';
             });
             
+            // Format description button
+            formatDescriptionBtn.addEventListener('click', () => {
+                const description = promptInput.value.trim();
+                if (!description) {
+                    alert('Please enter a description to format.');
+                    return;
+                }
+                
+                // Disable button and show loading state
+                formatDescriptionBtn.disabled = true;
+                formatDescriptionBtn.innerHTML = '<span class="flex items-center justify-center"><svg class="animate-spin h-5 w-5 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>Formatting...</span>';
+                
+                // Send message to extension
+                vscode.postMessage({
+                    command: 'formatDescription',
+                    description: description
+                });
+            });
+            
             // Handle messages from the extension
             window.addEventListener('message', (event) => {
                 const message = event.data;
@@ -188,6 +218,15 @@ function getWebviewContent(webview, context) {
                         
                     case 'folderSelected':
                         outputFolderInput.value = message.folderPath;
+                        break;
+                        
+                    case 'descriptionFormatted':
+                        // Reset button state
+                        formatDescriptionBtn.disabled = false;
+                        formatDescriptionBtn.innerHTML = '<span class="flex items-center justify-center"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v2H7a1 1 0 100 2h2v2a1 1 0 102 0v-2h2a1 1 0 100-2h-2V7z" clip-rule="evenodd" /></svg>Format</span>';
+                        
+                        // Update the description textarea with the formatted text
+                        promptInput.value = message.formattedDescription;
                         break;
                 }
             });

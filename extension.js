@@ -3,7 +3,7 @@ const path = require('path');
 
 // Import modules
 const { getWebviewContent } = require('./webview');
-const { generateComponent, cleanupTempFiles } = require('./generator/componentGenerator');
+const { generateComponent, formatDescription, cleanupTempFiles } = require('./generator/componentGenerator');
 const { createComponentFile } = require('./fileSystem/fileManager');
 
 /**
@@ -55,6 +55,22 @@ function activate(context) {
                             panel.webview.postMessage({
                                 command: 'error',
                                 error: error.message || 'An error occurred while generating the component.'
+                            });
+                            vscode.window.showErrorMessage(`Error: ${error.message}`);
+                        }
+                        break;
+
+                    case 'formatDescription':
+                        try {
+                            const formattedDescription = await formatDescription(message.description);
+                            panel.webview.postMessage({
+                                command: 'descriptionFormatted',
+                                formattedDescription
+                            });
+                        } catch (error) {
+                            panel.webview.postMessage({
+                                command: 'error',
+                                error: error.message || 'An error occurred while formatting the description.'
                             });
                             vscode.window.showErrorMessage(`Error: ${error.message}`);
                         }

@@ -251,7 +251,67 @@ function cleanupTempFiles() {
     }
 }
 
+/**
+ * Format a component description using Anthropic API
+ * @param {string} description - User's description to format
+ * @returns {Promise<string>} - Formatted description
+ */
+async function formatDescription(description) {
+    // Check if Anthropic API key is configured
+    const config = vscode.workspace.getConfiguration('nextjsComponentGenerator');
+    const apiKey = config.get('anthropicApiKey');
+
+    if (!apiKey) {
+        // Prompt user to enter API key if not configured
+        const enteredKey = await vscode.window.showInputBox({
+            prompt: 'Please enter your Anthropic API key',
+            password: true,
+            ignoreFocusOut: true,
+            placeHolder: 'sk-ant-...'
+        });
+
+        if (!enteredKey) {
+            throw new Error('Anthropic API key is required to format descriptions.');
+        }
+
+        // Save the API key in settings
+        await config.update('anthropicApiKey', enteredKey, vscode.ConfigurationTarget.Global);
+    }
+
+    // Initialize Anthropic client
+    const anthropic = new Anthropic({
+        apiKey: apiKey || config.get('anthropicApiKey')
+    });
+
+    // Prepare the system prompt for formatting
+    const systemPrompt = `You are a helpful assistant that formats component descriptions to be more detailed, structured, and clear. Your task is to take a user's brief description of a UI component and enhance it with specific details about:
+    1. Layout and structure
+    2. Responsive behavior
+    3. Styling and visual elements
+    4. Interactive elements and states
+    5. Accessibility considerations
+
+Format the description in a clear, concise way that would help a developer understand exactly what to build. Do not add implementation details or code, just focus on the requirements and design aspects. Keep your response focused only on the improved description without any explanations or additional commentary.`;
+
+    // Call the Anthropic API
+    const response = await anthropic.messages.create({
+        model: 'claude-3-haiku-20240307',
+        system: systemPrompt,
+        messages: [
+            {
+                role: 'user',
+                content: `Format this component description to be more detailed and structured: "${description}"`
+            }
+        ],
+        max_tokens: 1000,
+        temperature: 0.7
+    });
+
+    return response.content[0].text.trim();
+}
+
 module.exports = {
     generateComponent,
+    formatDescription,
     cleanupTempFiles
 };
