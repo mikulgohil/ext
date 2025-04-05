@@ -46,7 +46,7 @@ async function generateComponent(prompt, imageData) {
     const messages = [
         {
             role: 'system',
-            content: "You are a Next.js component generator specialized in creating high-quality, reusable React components with TypeScript and Tailwind CSS. When given a description and optionally an image reference, you will generate a complete, well-structured component that follows best practices. Your output should include: 1. A component name (in PascalCase), 2. TypeScript interface for props, 3. The complete component code with proper imports, 4. Detailed comments explaining the component structure and functionality, 5. Tailwind CSS classes for styling. Make sure the component is responsive, accessible, and follows modern React patterns like hooks."
+            content: "You are a Next.js component generator specialized in creating high-quality, reusable React components with TypeScript and Tailwind CSS. When given a description and optionally an image reference, you will generate a complete, well-structured component that follows best practices.\n\nYour output MUST follow this exact format:\n\n1. Start with a line containing ONLY the component name in PascalCase, like this: 'COMPONENT_NAME: ComponentName'\n\n2. Then include a header section with helpful instructions for using the component, like this:\n```\n/*\n * ComponentName - [Brief description]\n * \n * USAGE:\n * import { ComponentName } from '@/components/ComponentName';\n * \n * <ComponentName prop1=\"value\" prop2={value} />\n * \n * PROPS:\n * - prop1: Description of prop1\n * - prop2: Description of prop2\n */\n```\n\n3. TypeScript interface for props\n\n4. The complete component code with proper imports\n\n5. Detailed comments explaining the component structure and functionality\n\n6. Tailwind CSS classes for styling\n\nMake sure the component is responsive, accessible, and follows modern React patterns like hooks."
         },
         {
             role: 'user',
@@ -91,12 +91,49 @@ async function generateComponent(prompt, imageData) {
     const generatedText = response.choices[0].message.content;
 
     // Parse the component name and code from the response
-    const componentNameMatch = generatedText.match(/```tsx\s*(?:\/\/\s*)?([A-Z][a-zA-Z0-9]*)\s*\.tsx/);
-    const componentName = componentNameMatch ? componentNameMatch[1] : 'GeneratedComponent';
+    const componentNameMatch = generatedText.match(/COMPONENT_NAME:\s*([A-Z][a-zA-Z0-9]*)/);
+
+    // Extract component name from the response or from the prompt
+    let componentName = componentNameMatch ? componentNameMatch[1] : null;
+
+    // If component name wasn't found in the expected format, try to extract it from the prompt
+    if (!componentName) {
+        // Look for patterns like "Create a Card component" or "Generate a Button component"
+        const promptComponentMatch = prompt.match(/(?:create|generate|make)\s+(?:a|an)\s+([A-Z][a-zA-Z0-9]*|[a-z][a-zA-Z0-9]*)\s+component/i);
+        if (promptComponentMatch) {
+            // Convert to PascalCase
+            componentName = promptComponentMatch[1].charAt(0).toUpperCase() + promptComponentMatch[1].slice(1);
+        } else {
+            // Default to GeneratedComponent if no name can be extracted
+            componentName = 'GeneratedComponent';
+        }
+    }
 
     // Extract the component code
     const codeMatch = generatedText.match(/```tsx\s*([\s\S]*?)```/);
-    const componentCode = codeMatch ? codeMatch[1].trim() : generatedText;
+    let componentCode = codeMatch ? codeMatch[1].trim() : generatedText;
+
+    // Check if the header comment is already present, if not add it
+    if (!componentCode.includes('/*') || !componentCode.includes('USAGE:')) {
+        const headerComment = `/*
+ * ${componentName} - Component generated from user description
+ * 
+ * USAGE:
+ * import { ${componentName} } from '@/components/${componentName}';
+ * 
+ * <${componentName} prop1="value" prop2={value} />
+ * 
+ * PROPS:
+ * Check the ${componentName}Props interface below for available props
+ * 
+ * CUSTOMIZATION:
+ * - Modify the component props interface to add or remove properties
+ * - Adjust the Tailwind CSS classes to change the styling
+ * - Add additional functionality as needed
+ */
+`;
+        componentCode = headerComment + componentCode;
+    }
 
     return {
         componentName,

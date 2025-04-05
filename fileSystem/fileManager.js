@@ -80,18 +80,26 @@ async function createComponentFile(componentName, componentCode, outputFolder, c
     const indexFilePath = path.join(componentDir, 'index.ts');
     fs.writeFileSync(indexFilePath, `export * from './${pascalCaseName}';\nexport { default } from './${pascalCaseName}';\n`);
 
-    // Create Storybook file if requested
-    if (createStorybook) {
-        const storybookCode = generateStorybookFile(pascalCaseName, componentCode);
-        const storybookPath = path.join(componentDir, `${pascalCaseName}.stories.tsx`);
-        fs.writeFileSync(storybookPath, storybookCode);
-    }
-
-    // Create mock data file if requested (using .mocks.ts instead of .mock.ts)
+    // Create mock data file if requested
     if (createMockData) {
         const mockDataCode = generateMockDataFile(pascalCaseName, componentCode);
-        const mockDataPath = path.join(componentDir, `${pascalCaseName}.mocks.ts`);
+        const mockDataPath = path.join(componentDir, `${pascalCaseName}.mock.ts`);
         fs.writeFileSync(mockDataPath, mockDataCode);
+    }
+
+    // Create Storybook file if requested
+    if (createStorybook) {
+        // If mock data is also requested, use the version with mock data imports
+        if (createMockData) {
+            const storybookCode = generateStorybookFile(pascalCaseName, componentCode);
+            const storybookPath = path.join(componentDir, `${pascalCaseName}.stories.tsx`);
+            fs.writeFileSync(storybookPath, storybookCode);
+        } else {
+            // Otherwise use a simpler version without mock data imports
+            const storybookCode = generateSimpleStorybookFile(pascalCaseName, componentCode);
+            const storybookPath = path.join(componentDir, `${pascalCaseName}.stories.tsx`);
+            fs.writeFileSync(storybookPath, storybookCode);
+        }
     }
 
     // Open the component file in the editor
@@ -118,6 +126,7 @@ function generateStorybookFile(componentName, componentCode) {
         "import React from 'react';",
         "import { Meta, StoryObj } from '@storybook/react';",
         `import ${componentName} from './index';`,
+        `import { mock${componentName}Data, alternative${componentName}Data } from './${componentName}.mock';`,
         "",
         `const meta: Meta<typeof ${componentName}> = {`,
         `  title: 'Components/${componentName}',`,
@@ -133,13 +142,13 @@ function generateStorybookFile(componentName, componentCode) {
         "",
         "export const Default: Story = {",
         "  args: {",
-        "    // Add default props here",
+        "    ...mock${componentName}Data",
         "  },",
         "};",
         "",
         "export const Variant: Story = {",
         "  args: {",
-        "    // Add variant props here",
+        "    ...alternative${componentName}Data",
         "  },",
         "};"
     ].join('\n');
@@ -201,6 +210,67 @@ function generateMockDataFile(componentName, componentCode) {
     ];
 
     return lines.join('\n');
+}
+
+/**
+ * Generate a simple Storybook file for the component without mock data imports
+ * @param {string} componentName - Name of the component
+ * @param {string} componentCode - Generated component code
+ * @returns {string} - Storybook file content
+ */
+function generateSimpleStorybookFile(componentName, componentCode) {
+    // Extract props interface from component code
+    const propsInterfaceMatch = componentCode.match(/interface\s+(\w+Props)\s*{([^}]*)}/);
+    const propsInterface = propsInterfaceMatch ? propsInterfaceMatch[1] : `${componentName}Props`;
+    const propsContent = propsInterfaceMatch ? propsInterfaceMatch[2] : '';
+
+    // Parse props to create sample data
+    const sampleProps = {};
+
+    // Add placeholder images for image props
+    if (propsContent.includes('image') || propsContent.includes('img') || propsContent.includes('src')) {
+        sampleProps.image = 'https://via.placeholder.com/400x300';
+    }
+
+    // Add placeholder text for common props
+    if (propsContent.includes('title')) {
+        sampleProps.title = `${componentName} Title`;
+    }
+
+    if (propsContent.includes('description')) {
+        sampleProps.description = 'This is a sample description for the component.';
+    }
+
+    // Create a basic Storybook file
+    return [
+        "import React from 'react';",
+        "import { Meta, StoryObj } from '@storybook/react';",
+        `import ${componentName} from './index';`,
+        "",
+        `const meta: Meta<typeof ${componentName}> = {`,
+        `  title: 'Components/${componentName}',`,
+        `  component: ${componentName},`,
+        "  parameters: {",
+        "    layout: 'centered',",
+        "  },",
+        "  tags: ['autodocs'],",
+        "};",
+        "",
+        "export default meta;",
+        `type Story = StoryObj<typeof ${componentName}>;`,
+        "",
+        "export const Default: Story = {",
+        "  args: {",
+        `    ${Object.entries(sampleProps).map(([key, value]) => `${key}: ${JSON.stringify(value)}`).join(',\n    ')}`,
+        "  },",
+        "};",
+        "",
+        "export const Variant: Story = {",
+        "  args: {",
+        "    // Add variant props here",
+        "  },",
+        "};"
+    ].join('\n');
 }
 
 module.exports = {
