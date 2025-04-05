@@ -1,7 +1,7 @@
 {
   "name": "nextjs-component-generator",
   "displayName": "Next.js Component Generator",
-  "description": "Generate Next.js components using OpenAI with text and image input",
+  "description": "Generate Next.js components using Anthropic with text and image input",
   "version": "1.0.0",
   "publisher": "nextjs-component-generator",
   "icon": "icon.png",
@@ -17,8 +17,8 @@
     "react",
     "component",
     "generator",
-    "openai",
-    "gpt",
+    "anthropic",
+    "claude",
     "ai",
     "tailwind"
   ],
@@ -36,10 +36,10 @@
     "configuration": {
       "title": "Next.js Component Generator",
       "properties": {
-        "nextjsComponentGenerator.openaiApiKey": {
+        "nextjsComponentGenerator.anthropicApiKey": {
           "type": "string",
           "default": "",
-          "description": "Your OpenAI API key for generating components"
+          "description": "Your Anthropic API key for generating components"
         }
       }
     }
@@ -59,8 +59,8 @@
     "build": "npm run webpack-prod"
   },
   "dependencies": {
-    "form-data": "^4.0.0",
-    "openai": "^4.20.0"
+    "@anthropic-ai/sdk": "^0.16.1",
+    "form-data": "^4.0.0"
   },
   "devDependencies": {
     "@types/glob": "^8.1.0",

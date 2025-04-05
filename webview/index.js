@@ -13,7 +13,7 @@ function getWebviewContent(webview, context) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Next.js Component Generator</title>
+    <title>Next.js Component Generator (Powered by Anthropic)</title>
     <style>
         body { font-family: system-ui; padding: 20px; }
         .container { max-width: 800px; margin: 0 auto; }
@@ -29,7 +29,7 @@ function getWebviewContent(webview, context) {
 </head>
 <body>
     <div class="container">
-        <h1>Next.js Component Generator</h1>
+        <h1>Next.js Component Generator (Powered by Anthropic)</h1>
         
         <div class="input-group">
             <label for="prompt">Describe the component you want to create:</label>

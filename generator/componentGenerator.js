@@ -1,7 +1,7 @@
 const vscode = require('vscode');
 const fs = require('fs');
 const path = require('path');
-const { OpenAI } = require('openai');
+const { Anthropic } = require('@anthropic-ai/sdk');
 
 // Create a temporary directory for storing uploaded images
 const tempDir = path.join(__dirname, 'temp');
@@ -10,57 +10,52 @@ if (!fs.existsSync(tempDir)) {
 }
 
 /**
- * Generate a Next.js component using OpenAI API
+ * Generate a Next.js component using Anthropic API
  * @param {string} prompt - User's description of the component
  * @param {string} imageData - Base64 encoded image data (optional)
  * @returns {Promise<Object>} - Generated component details
  */
 async function generateComponent(prompt, imageData) {
-    // Check if OpenAI API key is configured
+    // Check if Anthropic API key is configured
     const config = vscode.workspace.getConfiguration('nextjsComponentGenerator');
-    const apiKey = config.get('openaiApiKey');
+    const apiKey = config.get('anthropicApiKey');
 
     if (!apiKey) {
         // Prompt user to enter API key if not configured
         const enteredKey = await vscode.window.showInputBox({
-            prompt: 'Please enter your OpenAI API key',
+            prompt: 'Please enter your Anthropic API key',
             password: true,
             ignoreFocusOut: true,
-            placeHolder: 'sk-...'
+            placeHolder: 'sk-ant-...'
         });
 
         if (!enteredKey) {
-            throw new Error('OpenAI API key is required to generate components.');
+            throw new Error('Anthropic API key is required to generate components.');
         }
 
         // Save the API key in settings
-        await config.update('openaiApiKey', enteredKey, vscode.ConfigurationTarget.Global);
+        await config.update('anthropicApiKey', enteredKey, vscode.ConfigurationTarget.Global);
     }
 
-    // Initialize OpenAI client
-    const openai = new OpenAI({
-        apiKey: apiKey || config.get('openaiApiKey')
+    // Initialize Anthropic client
+    const anthropic = new Anthropic({
+        apiKey: apiKey || config.get('anthropicApiKey')
     });
 
     // Prepare the messages for the API call
+    let systemPrompt = "You are a Next.js component generator specialized in creating high-quality, reusable React components with TypeScript and Tailwind CSS. When given a description and optionally an image reference, you will generate a complete, well-structured component that follows best practices.\n\nYour output MUST follow this exact format:\n\n1. Start with a line containing ONLY the component name in PascalCase, like this: 'COMPONENT_NAME: ComponentName'\n\n2. Then include a header section with helpful instructions for using the component, like this:\n```\n/*\n * ComponentName - [Brief description]\n * \n * USAGE:\n * import { ComponentName } from '@/components/ComponentName';\n * \n * <ComponentName prop1=\"value\" prop2={value} />\n * \n * PROPS:\n * - prop1: Description of prop1\n * - prop2: Description of prop2\n */\n```\n\n3. TypeScript interface for props\n\n4. The complete component code with proper imports\n\n5. Detailed comments explaining the component structure and functionality\n\n6. Tailwind CSS classes for styling\n\nIMPORTANT: You MUST include the actual component implementation, not just the interface. Always include the full React component with a return statement that renders JSX. Never provide just the interface definition without the component implementation.\n\nMake sure the component is responsive, accessible, and follows modern React patterns like hooks.";
+
+    let userPrompt = "Create a Next.js component based on this description: " + prompt;
+
+    // Prepare the messages array
     const messages = [
         {
-            role: 'system',
-            content: "You are a Next.js component generator specialized in creating high-quality, reusable React components with TypeScript and Tailwind CSS. When given a description and optionally an image reference, you will generate a complete, well-structured component that follows best practices.\n\nYour output MUST follow this exact format:\n\n1. Start with a line containing ONLY the component name in PascalCase, like this: 'COMPONENT_NAME: ComponentName'\n\n2. Then include a header section with helpful instructions for using the component, like this:\n```\n/*\n * ComponentName - [Brief description]\n * \n * USAGE:\n * import { ComponentName } from '@/components/ComponentName';\n * \n * <ComponentName prop1=\"value\" prop2={value} />\n * \n * PROPS:\n * - prop1: Description of prop1\n * - prop2: Description of prop2\n */\n```\n\n3. TypeScript interface for props\n\n4. The complete component code with proper imports\n\n5. Detailed comments explaining the component structure and functionality\n\n6. Tailwind CSS classes for styling\n\nMake sure the component is responsive, accessible, and follows modern React patterns like hooks."
-        },
-        {
             role: 'user',
-            content: []
+            content: userPrompt
         }
     ];
 
-    // Add text prompt to the message
-    messages[1].content.push({
-        type: 'text',
-        text: "Create a Next.js component based on this description: " + prompt
-    });
-
-    // Add image to the message if provided
+    // If image data is provided, we need to use the Anthropic Messages API with media
     if (imageData) {
         // Extract the base64 data from the data URL
         const base64Data = imageData.split(',')[1];
@@ -70,25 +65,51 @@ async function generateComponent(prompt, imageData) {
         const imagePath = path.join(tempDir, `reference_${Date.now()}.png`);
         fs.writeFileSync(imagePath, imageBuffer);
 
-        // Add the image to the message
-        messages[1].content.push({
-            type: 'image_url',
-            image_url: {
-                url: "data:image/png;base64," + base64Data,
-                detail: 'high'
-            }
+        // Call the Anthropic API with image
+        const response = await anthropic.messages.create({
+            model: 'claude-3-opus-20240229',
+            system: systemPrompt,
+            messages: [
+                {
+                    role: 'user',
+                    content: [
+                        {
+                            type: 'text',
+                            text: userPrompt
+                        },
+                        {
+                            type: 'image',
+                            source: {
+                                type: 'base64',
+                                media_type: 'image/png',
+                                data: base64Data
+                            }
+                        }
+                    ]
+                }
+            ],
+            max_tokens: 4096,
+            temperature: 0.7
         });
+
+        var generatedText = response.content[0].text;
+    } else {
+        // Call the Anthropic API without image
+        const response = await anthropic.messages.create({
+            model: 'claude-3-opus-20240229',
+            system: systemPrompt,
+            messages: [
+                {
+                    role: 'user',
+                    content: userPrompt
+                }
+            ],
+            max_tokens: 4096,
+            temperature: 0.7
+        });
+
+        var generatedText = response.content[0].text;
     }
-
-    // Call the OpenAI API
-    const response = await openai.chat.completions.create({
-        model: 'gpt-4o',  // Updated from deprecated gpt-4-vision-preview to gpt-4o which supports vision
-        messages: messages,
-        max_tokens: 4096,
-        temperature: 0.7
-    });
-
-    const generatedText = response.choices[0].message.content;
 
     // Parse the component name and code from the response
     const componentNameMatch = generatedText.match(/COMPONENT_NAME:\s*([A-Z][a-zA-Z0-9]*)/);
@@ -131,6 +152,58 @@ async function generateComponent(prompt, imageData) {
     // Add default export if only named export exists
     if (componentCode.includes('export const ' + componentName) && !componentCode.includes('export default')) {
         componentCode += `\n\nexport default ${componentName};\n`;
+    }
+
+    // Ensure the component has a complete implementation
+    // Check if the component code is missing the actual component implementation
+    if (!componentCode.includes('function ' + componentName) &&
+        !componentCode.includes('const ' + componentName) &&
+        !componentCode.includes('class ' + componentName) &&
+        !componentCode.includes('export function ' + componentName) &&
+        !componentCode.includes('export const ' + componentName) &&
+        !componentCode.includes('export default function ' + componentName)) {
+
+        // If only the interface is present, add a basic component implementation
+        if (componentCode.includes('interface ' + componentName + 'Props')) {
+            // Extract props from interface
+            const interfaceMatch = componentCode.match(new RegExp(`interface\\s+${componentName}Props\\s*{([\\s\\S]*?)}`));
+            let propsStr = '';
+
+            if (interfaceMatch) {
+                const interfaceContent = interfaceMatch[1];
+                const propLines = interfaceContent.split('\n')
+                    .map(line => line.trim())
+                    .filter(line => line && !line.startsWith('//') && !line.startsWith('/*'));
+
+                propsStr = propLines
+                    .map(line => {
+                        const propMatch = line.match(/(\w+)[\?]?:/);
+                        return propMatch ? propMatch[1] : null;
+                    })
+                    .filter(Boolean)
+                    .join(',\n  ');
+            }
+
+            componentCode += `\nimport React from 'react';\n\nexport const ${componentName}: React.FC<${componentName}Props> = ({
+  ${propsStr}
+}) => {
+  return (
+    <div className="rounded-lg shadow-md p-6 bg-white">
+      {/* Implement your component UI here using the props */}
+      {title && <h2 className="text-xl font-bold mb-2">{title}</h2>}
+      {description && <p className="text-gray-700 mb-4">{description}</p>}
+      {ctaText && ctaLink && (
+        <a 
+          href={ctaLink} 
+          className="inline-block px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+        >
+          {ctaText}
+        </a>
+      )}
+    </div>
+  );
+};\n\nexport default ${componentName};\n`;
+        }
     }
 
     // Check if the header comment is already present, if not add it

@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Next.js Component Generator is a Visual Studio Code extension that leverages OpenAI's GPT-4 Vision model to generate high-quality, reusable React components for Next.js applications. This extension bridges the gap between design and implementation by allowing developers to describe components in natural language and optionally provide reference images to guide the generation process.
+The Next.js Component Generator is a Visual Studio Code extension that leverages Anthropic's Claude model to generate high-quality, reusable React components for Next.js applications. This extension bridges the gap between design and implementation by allowing developers to describe components in natural language and optionally provide reference images to guide the generation process.
 
 ## Problem Statement
 
@@ -14,7 +14,7 @@ Our VS Code extension addresses these challenges by:
 
 1. Providing an intuitive chat interface within VS Code
 2. Accepting both text descriptions and reference images as input
-3. Leveraging OpenAI's GPT-4 Vision model to generate complete, production-ready components
+3. Leveraging Anthropic's Claude model to generate complete, production-ready components
 4. Automatically creating component files in the appropriate project structure
 5. Ensuring generated components follow best practices for TypeScript and Tailwind CSS
 
@@ -25,7 +25,7 @@ Our VS Code extension addresses these challenges by:
 The extension follows a modular architecture:
 
 - **UI Layer**: WebView-based chat interface for user interaction
-- **Service Layer**: Handles communication with the OpenAI API
+- **Service Layer**: Handles communication with the Anthropic API
 - **File System Layer**: Manages component file creation and project structure detection
 
 ### Key Components
@@ -36,9 +36,9 @@ The extension follows a modular architecture:
    - Provides image upload and drag-and-drop functionality
    - Displays generated component code with syntax highlighting
 
-2. **OpenAI Integration**
-   - Uses the OpenAI Node.js client library
-   - Implements the chat completions API with GPT-4 Vision model
+2. **Anthropic Integration**
+   - Uses the Anthropic Node.js client library
+   - Implements the messages API with Claude model
    - Handles both text and image inputs in the same request
    - Processes and parses the AI-generated response
 
@@ -49,7 +49,7 @@ The extension follows a modular architecture:
    - Opens generated files in the editor for immediate review
 
 4. **Configuration Management**
-   - Securely stores the OpenAI API key in VS Code settings
+   - Securely stores the Anthropic API key in VS Code settings
    - Provides customization options for component generation
    - Implements proper error handling and user feedback
 
@@ -57,7 +57,7 @@ The extension follows a modular architecture:
 
 - **Frontend**: HTML, CSS, JavaScript (WebView)
 - **Backend**: Node.js, VS Code Extension API
-- **AI**: OpenAI GPT-4 Vision API
+- **AI**: Anthropic Claude API
 - **Build Tools**: Webpack, TypeScript
 - **Testing**: Mocha, VS Code Testing Framework
 
@@ -152,7 +152,7 @@ The extension follows a modular architecture:
 ### Phase 1: Core Functionality (Current)
 - Basic chat interface
 - Text and image input support
-- OpenAI API integration
+- Anthropic API integration
 - Component generation and file creation
 
 ### Phase 2: Enhanced User Experience (Next)
@@ -179,7 +179,7 @@ The extension follows a modular architecture:
 **Solution**: Fine-tuned prompts and system messages to guide the AI in generating high-quality, consistent components that follow best practices.
 
 ### Challenge 2: Image Processing
-**Solution**: Leveraged OpenAI's Vision capabilities to analyze reference images and extract relevant design elements for component generation.
+**Solution**: Leveraged Anthropic's Claude vision capabilities to analyze reference images and extract relevant design elements for component generation.
 
 ### Challenge 3: Project Structure Detection
 **Solution**: Implemented intelligent detection of common Next.js project structures to place generated components in the appropriate directories.
@@ -205,7 +205,7 @@ Before setting up the extension, ensure you have the following installed:
 - **Node.js** (v14.0.0 or higher)
 - **npm** (v6.0.0 or higher)
 - **Visual Studio Code** (v1.80.0 or higher)
-- **An OpenAI API key** with access to GPT-4 Vision model
+- **An Anthropic API key** with access to Claude model
 
 ### Development Setup
 
@@ -325,19 +325,19 @@ For creating a production build to share with others:
    - Type "Extensions: Install from VSIX" and select it
    - Navigate to the `.vsix` file and select it
 
-### Setting Up OpenAI API Key
+### Setting Up Anthropic API Key
 
-The extension requires an OpenAI API key to function:
+The extension requires an Anthropic API key to function:
 
 1. **Get an API key**
-   - Sign up or log in to [OpenAI](https://platform.openai.com/)
+   - Sign up or log in to [Anthropic](https://console.anthropic.com/)
    - Navigate to the API section and create a new API key
-   - Ensure your account has access to the GPT-4 Vision model
+   - Ensure your account has access to the Claude model
 
 2. **Configure the API key in VS Code**
    - Open VS Code Settings (`Ctrl+,` / `Cmd+,`)
    - Search for "Next.js Component Generator"
-   - Enter your API key in the "OpenAI API Key" field
+   - Enter your API key in the "Anthropic API Key" field
    - Alternatively, the extension will prompt you for the key on first use
 
 ## Using the Extension
@@ -361,7 +361,7 @@ The extension requires an OpenAI API key to function:
 
 4. **Generate the component**
    - Click the "Generate Component" button
-   - The extension will communicate with OpenAI's API
+   - The extension will communicate with Anthropic's API
    - Wait for the response (this may take a few seconds)
 
 5. **Review and save**
@@ -391,8 +391,8 @@ The extension requires an OpenAI API key to function:
 
 1. **API Key Issues**
    - If you encounter authentication errors, verify your API key is correct
-   - Ensure your OpenAI account has access to the GPT-4 Vision model
-   - Check your billing status on the OpenAI platform
+   - Ensure your Anthropic account has access to the Claude model
+   - Check your billing status on the Anthropic platform
 
 2. **Generation Failures**
    - If component generation fails, try simplifying your description
@@ -438,11 +438,12 @@ The extension requires an OpenAI API key to function:
         ```
      3. Run the build and package commands again
      
-   - If you see "The model `gpt-4-vision-preview` has been deprecated" error:
+   - If you see "The model is not supported" error:
      1. Update the model in extension.js to use the current model:
         ```javascript
-        const response = await openai.chat.completions.create({
-            model: 'gpt-4o',  // Updated from deprecated gpt-4-vision-preview
+        const response = await anthropic.messages.create({
+            model: 'claude-3-opus-20240229',  // Use the latest available Claude model
+            system: systemPrompt,
             messages: messages,
             max_tokens: 4096,
             temperature: 0.7

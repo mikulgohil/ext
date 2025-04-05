@@ -1,6 +1,6 @@
 # Next.js Component Generator
 
-A VS Code extension that generates Next.js components using OpenAI's GPT-4 Vision model. This extension allows you to describe a component in natural language and optionally provide a reference image to guide the generation process.
+A VS Code extension that generates Next.js components using Anthropic's Claude model. This extension allows you to describe a component in natural language and optionally provide a reference image to guide the generation process.
 
 ![Next.js Component Generator](https://raw.githubusercontent.com/yourusername/nextjs-component-generator/main/screenshots/demo.png)
 
@@ -16,12 +16,12 @@ A VS Code extension that generates Next.js components using OpenAI's GPT-4 Visio
 ## Requirements
 
 - VS Code 1.80.0 or higher
-- An OpenAI API key with access to GPT-4 Vision model
+- An Anthropic API key with access to Claude model
 
 ## Installation
 
 1. Install the extension from the VS Code Marketplace
-2. You'll be prompted to enter your OpenAI API key when you first use the extension
+2. You'll be prompted to enter your Anthropic API key when you first use the extension
 
 ## Usage
 
@@ -47,11 +47,11 @@ Here are some example prompts you can use:
 
 This extension contributes the following settings:
 
-* `nextjsComponentGenerator.openaiApiKey`: Your OpenAI API key
+* `nextjsComponentGenerator.anthropicApiKey`: Your Anthropic API key
 
 ## Known Issues
 
-- The extension requires an internet connection to communicate with the OpenAI API
+- The extension requires an internet connection to communicate with the Anthropic API
 - Large or complex components may take longer to generate
 - The extension works best with Next.js projects that use TypeScript and Tailwind CSS
 
@@ -62,7 +62,7 @@ This extension contributes the following settings:
 - Initial release of Next.js Component Generator
 - Support for generating Next.js components using text descriptions
 - Support for uploading reference images to guide component generation
-- Integration with OpenAI's GPT-4 Vision model
+- Integration with Anthropic's Claude model
 - TypeScript and Tailwind CSS support for generated components
 - Detailed comments in generated components explaining structure and functionality
 
