@@ -109,9 +109,29 @@ async function generateComponent(prompt, imageData) {
         }
     }
 
-    // Extract the component code
-    const codeMatch = generatedText.match(/```tsx\s*([\s\S]*?)```/);
-    let componentCode = codeMatch ? codeMatch[1].trim() : generatedText;
+    // Clean up the generated text by removing the COMPONENT_NAME line
+    let cleanedText = generatedText.replace(/COMPONENT_NAME:\s*([A-Z][a-zA-Z0-9]*)\s*\n/, '');
+
+    // Extract the component code from code blocks
+    const codeMatch = cleanedText.match(/```tsx\s*([\s\S]*?)```/) || cleanedText.match(/```typescript\s*([\s\S]*?)```/) || cleanedText.match(/```jsx\s*([\s\S]*?)```/) || cleanedText.match(/```js\s*([\s\S]*?)```/);
+
+    // If code blocks are found, extract the content, otherwise use the cleaned text
+    let componentCode = codeMatch ? codeMatch[1].trim() : cleanedText;
+
+    // Remove any remaining markdown code blocks
+    componentCode = componentCode.replace(/```[a-z]*\s*/g, '').replace(/```\s*$/g, '');
+
+    // Extract any detailed comments that might be outside the code block
+    const detailedCommentsMatch = cleanedText.match(/```.*?```\s*([\s\S]*)/);
+    let detailedComments = '';
+    if (detailedCommentsMatch && detailedCommentsMatch[1]) {
+        detailedComments = detailedCommentsMatch[1].trim();
+    }
+
+    // Add default export if only named export exists
+    if (componentCode.includes('export const ' + componentName) && !componentCode.includes('export default')) {
+        componentCode += `\n\nexport default ${componentName};\n`;
+    }
 
     // Check if the header comment is already present, if not add it
     if (!componentCode.includes('/*') || !componentCode.includes('USAGE:')) {

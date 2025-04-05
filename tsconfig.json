@@ -4,7 +4,8 @@
         "target": "ES2020",
         "outDir": "out",
         "lib": [
-            "ES2020"
+            "ES2020",
+            "DOM"
         ],
         "sourceMap": true,
         "rootDir": ".",
@@ -12,10 +13,13 @@
         "noImplicitReturns": true,
         "noFallthroughCasesInSwitch": true,
         "noUnusedParameters": true,
-        "esModuleInterop": true
+        "esModuleInterop": true,
+        "jsx": "react",
+        "skipLibCheck": true
     },
     "include": [
         "**/*.ts",
+        "**/*.tsx",
         "extension.js"
     ],
     "exclude": [

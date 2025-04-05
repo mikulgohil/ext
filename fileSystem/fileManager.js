@@ -142,13 +142,13 @@ function generateStorybookFile(componentName, componentCode) {
         "",
         "export const Default: Story = {",
         "  args: {",
-        "    ...mock${componentName}Data",
+        `    ...mock${componentName}Data`,
         "  },",
         "};",
         "",
         "export const Variant: Story = {",
         "  args: {",
-        "    ...alternative${componentName}Data",
+        `    ...alternative${componentName}Data`,
         "  },",
         "};"
     ].join('\n');
@@ -169,26 +169,110 @@ function generateMockDataFile(componentName, componentCode) {
     // Parse props to create mock data
     const mockData = {};
 
-    // Add placeholder images for image props
-    if (propsContent.includes('image') || propsContent.includes('img') || propsContent.includes('src')) {
-        mockData.image = 'https://via.placeholder.com/400x300';
+    // Extract all required props from the interface
+    const propLines = propsContent.split('\n');
+    const requiredProps = new Set();
+
+    // First pass: identify all required props
+    propLines.forEach(line => {
+        // Match property name that doesn't have a ? after it (required prop)
+        const requiredPropMatch = line.match(/^\s*(\w+)(\s*:|\s*;)/);
+        // Also match property name with : required after it
+        const explicitRequiredMatch = line.match(/^\s*(\w+)(\?)?(\s*:\s*[^;]+\s+required)/);
+
+        if (requiredPropMatch && !line.includes('?:') && !line.includes('? :')) {
+            requiredProps.add(requiredPropMatch[1]);
+        }
+
+        if (explicitRequiredMatch) {
+            requiredProps.add(explicitRequiredMatch[1]);
+        }
+    });
+
+    // Second pass: create mock data for all props, ensuring required ones are included
+    propLines.forEach(line => {
+        // Match any property name and its type
+        const propMatch = line.match(/^\s*(\w+)(\?)?(\s*:\s*([^;]+))?/);
+
+        if (propMatch) {
+            const propName = propMatch[1];
+            const propType = propMatch[4] ? propMatch[4].trim() : '';
+
+            // Skip comments and empty lines
+            if (propName.startsWith('//') || !propName) return;
+
+            // Generate appropriate mock data based on prop name and type
+            if (propType.includes('string') || propType === '') {
+                if (propName.includes('image') || propName.includes('img') || propName.includes('src') || propName.includes('avatar') || propName.includes('photo')) {
+                    mockData[propName] = 'https://via.placeholder.com/400x300';
+                } else if (propName.includes('title')) {
+                    mockData[propName] = `${componentName} Title`;
+                } else if (propName.includes('description') || propName.includes('content') || propName.includes('text')) {
+                    mockData[propName] = 'This is a sample description for the component. It provides context about what this component does.';
+                } else if (propName.includes('name')) {
+                    mockData[propName] = 'Sample Name';
+                } else if (propName.includes('email')) {
+                    mockData[propName] = 'user@example.com';
+                } else if (propName.includes('url') || propName.includes('link')) {
+                    mockData[propName] = 'https://example.com';
+                } else if (propName.includes('button') || propName.includes('cta') || propName.includes('action')) {
+                    mockData[propName] = 'Click Me';
+                } else {
+                    mockData[propName] = `Sample ${propName}`;
+                }
+            } else if (propType.includes('number')) {
+                if (propName.includes('id')) {
+                    mockData[propName] = 1;
+                } else if (propName.includes('count') || propName.includes('quantity')) {
+                    mockData[propName] = 5;
+                } else if (propName.includes('price') || propName.includes('cost')) {
+                    mockData[propName] = 99.99;
+                } else {
+                    mockData[propName] = 42;
+                }
+            } else if (propType.includes('boolean')) {
+                mockData[propName] = true;
+            } else if (propType.includes('array') || propType.includes('[]')) {
+                if (propName.includes('items') || propName.includes('list') || propName.includes('data')) {
+                    mockData[propName] = [
+                        { id: 1, name: 'Item 1', description: 'Description for item 1' },
+                        { id: 2, name: 'Item 2', description: 'Description for item 2' },
+                        { id: 3, name: 'Item 3', description: 'Description for item 3' },
+                    ];
+                } else {
+                    mockData[propName] = ['Item 1', 'Item 2', 'Item 3'];
+                }
+            } else if (propType.includes('function') || propType.includes('=>') || propType.includes('void')) {
+                // For function props, add a comment in the mock data
+                mockData[propName] = '() => console.log("Mock function called")';
+            } else if (propType.includes('|')) {
+                // For union types, use the first option if it's a string literal
+                const options = propType.split('|').map(opt => opt.trim());
+                const stringLiteral = options.find(opt => opt.startsWith("'") || opt.startsWith('"'));
+
+                if (stringLiteral) {
+                    // Remove quotes from the string literal
+                    mockData[propName] = stringLiteral.replace(/['"]/g, '');
+                } else if (options.includes('string')) {
+                    mockData[propName] = `Sample ${propName}`;
+                } else if (options.includes('number')) {
+                    mockData[propName] = 42;
+                } else if (options.includes('boolean')) {
+                    mockData[propName] = true;
+                } else {
+                    mockData[propName] = options[0]; // Use the first option as a fallback
+                }
+            }
+        }
+    });
+
+    // Handle special cases for common component props
+    if (componentName.toLowerCase().includes('button') && !mockData.onClick) {
+        mockData.onClick = '() => console.log("Button clicked")';
     }
 
-    // Add placeholder text for common props
-    if (propsContent.includes('title')) {
-        mockData.title = `${componentName} Title`;
-    }
-
-    if (propsContent.includes('description')) {
-        mockData.description = 'This is a sample description for the component. It provides context about what this component does.';
-    }
-
-    if (propsContent.includes('items') || propsContent.includes('list')) {
-        mockData.items = [
-            { id: 1, name: 'Item 1', description: 'Description for item 1' },
-            { id: 2, name: 'Item 2', description: 'Description for item 2' },
-            { id: 3, name: 'Item 3', description: 'Description for item 3' },
-        ];
+    if (componentName.toLowerCase().includes('card') && !mockData.theme && propsContent.includes('theme')) {
+        mockData.theme = 'light';
     }
 
     // Create the mock data file content
