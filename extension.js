@@ -46,8 +46,14 @@ function activate(context) {
 
                             // Create the component file if requested
                             if (message.createFile && result.componentCode) {
-                                await createComponentFile(result.componentName, result.componentCode);
-                                vscode.window.showInformationMessage(`Component ${result.componentName} created successfully!`);
+                                const successMessage = await createComponentFile(
+                                    result.componentName,
+                                    result.componentCode,
+                                    message.outputFolder,
+                                    message.createStorybook,
+                                    message.createMockData
+                                );
+                                vscode.window.showInformationMessage(successMessage);
                             }
                         } catch (error) {
                             panel.webview.postMessage({
@@ -55,6 +61,26 @@ function activate(context) {
                                 error: error.message || 'An error occurred while generating the component.'
                             });
                             vscode.window.showErrorMessage(`Error: ${error.message}`);
+                        }
+                        break;
+
+                    case 'browseFolder':
+                        try {
+                            const selectedFolder = await vscode.window.showOpenDialog({
+                                canSelectFiles: false,
+                                canSelectFolders: true,
+                                canSelectMany: false,
+                                openLabel: 'Select Output Folder'
+                            });
+
+                            if (selectedFolder && selectedFolder.length > 0) {
+                                panel.webview.postMessage({
+                                    command: 'folderSelected',
+                                    folderPath: selectedFolder[0].fsPath
+                                });
+                            }
+                        } catch (error) {
+                            console.error('Error selecting folder:', error);
                         }
                         break;
                 }
@@ -104,17 +130,7 @@ async function generateComponent(prompt, imageData) {
     const messages = [
         {
             role: 'system',
-            content: `You are a Next.js component generator specialized in creating high-quality, reusable React components with TypeScript and Tailwind CSS. 
-            When given a description and optionally an image reference, you will generate a complete, well-structured component that follows best practices.
-            
-            Your output should include:
-            1. A component name (in PascalCase)
-            2. TypeScript interface for props
-            3. The complete component code with proper imports
-            4. Detailed comments explaining the component structure and functionality
-            5. Tailwind CSS classes for styling
-            
-            Make sure the component is responsive, accessible, and follows modern React patterns like hooks.`
+            content: "You are a Next.js component generator specialized in creating high-quality, reusable React components with TypeScript and Tailwind CSS. When given a description and optionally an image reference, you will generate a complete, well-structured component that follows best practices. Your output should include: 1. A component name (in PascalCase), 2. TypeScript interface for props, 3. The complete component code with proper imports, 4. Detailed comments explaining the component structure and functionality, 5. Tailwind CSS classes for styling. Make sure the component is responsive, accessible, and follows modern React patterns like hooks."
         },
         {
             role: 'user',
@@ -125,7 +141,7 @@ async function generateComponent(prompt, imageData) {
     // Add text prompt to the message
     messages[1].content.push({
         type: 'text',
-        text: `Create a Next.js component based on this description: ${prompt}`
+        text: "Create a Next.js component based on this description: " + prompt
     });
 
     // Add image to the message if provided
@@ -142,7 +158,7 @@ async function generateComponent(prompt, imageData) {
         messages[1].content.push({
             type: 'image_url',
             image_url: {
-                url: `data:image/png;base64,${base64Data}`,
+                url: "data:image/png;base64," + base64Data,
                 detail: 'high'
             }
         });
@@ -177,8 +193,11 @@ async function generateComponent(prompt, imageData) {
  * Create a component file in the workspace
  * @param {string} componentName - Name of the component
  * @param {string} componentCode - Generated component code
+ * @param {string} outputFolder - Custom output folder path (optional)
+ * @param {boolean} createStorybook - Whether to create a Storybook file
+ * @param {boolean} createMockData - Whether to create a mock data file
  */
-async function createComponentFile(componentName, componentCode) {
+async function createComponentFile(componentName, componentCode, outputFolder, createStorybook, createMockData) {
     // Get the active workspace folder
     const workspaceFolders = vscode.workspace.workspaceFolders;
     if (!workspaceFolders) {
@@ -189,37 +208,45 @@ async function createComponentFile(componentName, componentCode) {
     let componentsDir;
     const rootPath = workspaceFolders[0].uri.fsPath;
 
-    // Check for common Next.js component directories
-    const possibleDirs = [
-        path.join(rootPath, 'components'),
-        path.join(rootPath, 'src', 'components'),
-        path.join(rootPath, 'app', 'components')
-    ];
-
-    for (const dir of possibleDirs) {
-        if (fs.existsSync(dir)) {
-            componentsDir = dir;
-            break;
+    // Use custom output folder if provided
+    if (outputFolder) {
+        componentsDir = outputFolder;
+        if (!fs.existsSync(componentsDir)) {
+            fs.mkdirSync(componentsDir, { recursive: true });
         }
-    }
+    } else {
+        // Check for common Next.js component directories
+        const possibleDirs = [
+            path.join(rootPath, 'components'),
+            path.join(rootPath, 'src', 'components'),
+            path.join(rootPath, 'app', 'components')
+        ];
 
-    // If no components directory exists, ask the user where to save
-    if (!componentsDir) {
-        const selectedFolder = await vscode.window.showOpenDialog({
-            canSelectFiles: false,
-            canSelectFolders: true,
-            canSelectMany: false,
-            openLabel: 'Select Components Directory'
-        });
-
-        if (!selectedFolder || selectedFolder.length === 0) {
-            // Default to creating a components directory in the workspace root
-            componentsDir = path.join(rootPath, 'components');
-            if (!fs.existsSync(componentsDir)) {
-                fs.mkdirSync(componentsDir, { recursive: true });
+        for (const dir of possibleDirs) {
+            if (fs.existsSync(dir)) {
+                componentsDir = dir;
+                break;
             }
-        } else {
-            componentsDir = selectedFolder[0].fsPath;
+        }
+
+        // If no components directory exists, ask the user where to save
+        if (!componentsDir) {
+            const selectedFolder = await vscode.window.showOpenDialog({
+                canSelectFiles: false,
+                canSelectFolders: true,
+                canSelectMany: false,
+                openLabel: 'Select Components Directory'
+            });
+
+            if (!selectedFolder || selectedFolder.length === 0) {
+                // Default to creating a components directory in the workspace root
+                componentsDir = path.join(rootPath, 'components');
+                if (!fs.existsSync(componentsDir)) {
+                    fs.mkdirSync(componentsDir, { recursive: true });
+                }
+            } else {
+                componentsDir = selectedFolder[0].fsPath;
+            }
         }
     }
 
@@ -229,13 +256,138 @@ async function createComponentFile(componentName, componentCode) {
         fs.mkdirSync(componentDir, { recursive: true });
     }
 
-    // Write the component file
-    const filePath = path.join(componentDir, 'index.tsx');
-    fs.writeFileSync(filePath, componentCode);
+    // Ensure component name is in PascalCase
+    const pascalCaseName = componentName.charAt(0).toUpperCase() + componentName.slice(1);
 
-    // Open the file in the editor
-    const document = await vscode.workspace.openTextDocument(filePath);
+    // Write the main component file (ComponentName.tsx instead of index.tsx)
+    const componentFilePath = path.join(componentDir, `${pascalCaseName}.tsx`);
+    fs.writeFileSync(componentFilePath, componentCode);
+
+    // Create index.ts barrel file for clean exports
+    const indexFilePath = path.join(componentDir, 'index.ts');
+    fs.writeFileSync(indexFilePath, `export * from './${pascalCaseName}';\nexport { default } from './${pascalCaseName}';\n`);
+
+    // Create Storybook file if requested
+    if (createStorybook) {
+        const storybookCode = generateStorybookFile(pascalCaseName, componentCode);
+        const storybookPath = path.join(componentDir, `${pascalCaseName}.stories.tsx`);
+        fs.writeFileSync(storybookPath, storybookCode);
+    }
+
+    // Create mock data file if requested (using .mocks.ts instead of .mock.ts)
+    if (createMockData) {
+        const mockDataCode = generateMockDataFile(pascalCaseName, componentCode);
+        const mockDataPath = path.join(componentDir, `${pascalCaseName}.mocks.ts`);
+        fs.writeFileSync(mockDataPath, mockDataCode);
+    }
+
+    // Open the component file in the editor
+    const document = await vscode.workspace.openTextDocument(componentFilePath);
     await vscode.window.showTextDocument(document);
+
+    // Return success message
+    return `Component "${pascalCaseName}" generated successfully`;
+}
+
+/**
+ * Generate a Storybook file for the component
+ * @param {string} componentName - Name of the component
+ * @param {string} componentCode - Generated component code
+ * @returns {string} - Storybook file content
+ */
+function generateStorybookFile(componentName, componentCode) {
+    // Extract props interface from component code
+    const propsInterfaceMatch = componentCode.match(/interface\s+(\w+Props)\s*{([^}]*)}/);
+    const propsInterface = propsInterfaceMatch ? propsInterfaceMatch[1] : `${componentName}Props`;
+
+    // Create a basic Storybook file
+    return [
+        "import React from 'react';",
+        "import { Meta, StoryObj } from '@storybook/react';",
+        `import ${componentName} from './index';`,
+        "",
+        `const meta: Meta<typeof ${componentName}> = {`,
+        `  title: 'Components/${componentName}',`,
+        `  component: ${componentName},`,
+        "  parameters: {",
+        "    layout: 'centered',",
+        "  },",
+        "  tags: ['autodocs'],",
+        "};",
+        "",
+        "export default meta;",
+        `type Story = StoryObj<typeof ${componentName}>;`,
+        "",
+        "export const Default: Story = {",
+        "  args: {",
+        "    // Add default props here",
+        "  },",
+        "};",
+        "",
+        "export const Variant: Story = {",
+        "  args: {",
+        "    // Add variant props here",
+        "  },",
+        "};"
+    ].join('\n');
+}
+
+/**
+ * Generate a mock data file for the component
+ * @param {string} componentName - Name of the component
+ * @param {string} componentCode - Generated component code
+ * @returns {string} - Mock data file content
+ */
+function generateMockDataFile(componentName, componentCode) {
+    // Extract props interface from component code
+    const propsInterfaceMatch = componentCode.match(/interface\s+(\w+Props)\s*{([^}]*)}/);
+    const propsInterface = propsInterfaceMatch ? propsInterfaceMatch[1] : `${componentName}Props`;
+    const propsContent = propsInterfaceMatch ? propsInterfaceMatch[2] : '';
+
+    // Parse props to create mock data
+    const mockData = {};
+
+    // Add placeholder images for image props
+    if (propsContent.includes('image') || propsContent.includes('img') || propsContent.includes('src')) {
+        mockData.image = 'https://via.placeholder.com/400x300';
+    }
+
+    // Add placeholder text for common props
+    if (propsContent.includes('title')) {
+        mockData.title = `${componentName} Title`;
+    }
+
+    if (propsContent.includes('description')) {
+        mockData.description = 'This is a sample description for the component. It provides context about what this component does.';
+    }
+
+    if (propsContent.includes('items') || propsContent.includes('list')) {
+        mockData.items = [
+            { id: 1, name: 'Item 1', description: 'Description for item 1' },
+            { id: 2, name: 'Item 2', description: 'Description for item 2' },
+            { id: 3, name: 'Item 3', description: 'Description for item 3' },
+        ];
+    }
+
+    // Create the mock data file content
+    const lines = [
+        `import { ${propsInterface} } from './index';`,
+        "",
+        `/**`,
+        ` * Mock data for ${componentName} component`,
+        ` */`,
+        `export const mock${componentName}Data: ${propsInterface} = ${JSON.stringify(mockData, null, 2)};`,
+        "",
+        `/**`,
+        ` * Alternative mock data for ${componentName} component`,
+        ` */`,
+        `export const alternative${componentName}Data: ${propsInterface} = {`,
+        `  ...mock${componentName}Data,`,
+        `  // Add or override properties for the alternative version`,
+        `};`
+    ];
+
+    return lines.join('\n');
 }
 
 /**
@@ -246,338 +398,129 @@ async function createComponentFile(componentName, componentCode) {
  */
 function getWebviewContent(webview, context) {
     return `<!DOCTYPE html>
-    <html lang="en">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Next.js Component Generator</title>
-        <style>
-            body {
-                font-family: var(--vscode-font-family);
-                padding: 20px;
-                color: var(--vscode-foreground);
-                background-color: var(--vscode-editor-background);
-            }
-            .container {
-                max-width: 800px;
-                margin: 0 auto;
-            }
-            h1 {
-                color: var(--vscode-editor-foreground);
-                font-size: 24px;
-                margin-bottom: 20px;
-            }
-            .input-group {
-                margin-bottom: 20px;
-            }
-            label {
-                display: block;
-                margin-bottom: 5px;
-                font-weight: bold;
-            }
-            textarea {
-                width: 100%;
-                height: 100px;
-                padding: 8px;
-                border: 1px solid var(--vscode-input-border);
-                background-color: var(--vscode-input-background);
-                color: var(--vscode-input-foreground);
-                border-radius: 4px;
-                resize: vertical;
-            }
-            .image-preview {
-                margin-top: 10px;
-                max-width: 300px;
-                max-height: 300px;
-                border: 1px dashed var(--vscode-input-border);
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                position: relative;
-            }
-            .image-preview img {
-                max-width: 100%;
-                max-height: 100%;
-            }
-            .image-preview-placeholder {
-                padding: 40px;
-                text-align: center;
-                color: var(--vscode-descriptionForeground);
-            }
-            button {
-                background-color: var(--vscode-button-background);
-                color: var(--vscode-button-foreground);
-                border: none;
-                padding: 8px 16px;
-                border-radius: 4px;
-                cursor: pointer;
-                font-weight: 500;
-                margin-right: 10px;
-            }
-            button:hover {
-                background-color: var(--vscode-button-hoverBackground);
-            }
-            .result {
-                margin-top: 20px;
-                border: 1px solid var(--vscode-panel-border);
-                border-radius: 4px;
-                padding: 16px;
-                background-color: var(--vscode-editor-background);
-                white-space: pre-wrap;
-                font-family: var(--vscode-editor-font-family);
-                font-size: var(--vscode-editor-font-size);
-            }
-            .loading {
-                display: none;
-                margin-top: 20px;
-                text-align: center;
-                color: var(--vscode-descriptionForeground);
-            }
-            .checkbox-group {
-                margin-top: 10px;
-                display: flex;
-                align-items: center;
-            }
-            .checkbox-group input {
-                margin-right: 8px;
-            }
-            .error {
-                color: var(--vscode-errorForeground);
-                margin-top: 10px;
-                padding: 8px;
-                border-radius: 4px;
-                background-color: var(--vscode-inputValidation-errorBackground);
-                border: 1px solid var(--vscode-inputValidation-errorBorder);
-            }
-            .remove-image {
-                position: absolute;
-                top: 5px;
-                right: 5px;
-                background: rgba(0, 0, 0, 0.7);
-                color: white;
-                border: none;
-                border-radius: 50%;
-                width: 24px;
-                height: 24px;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                cursor: pointer;
-                font-size: 14px;
-            }
-        </style>
-    </head>
-    <body>
-        <div class="container">
-            <h1>Next.js Component Generator</h1>
-            
-            <div class="input-group">
-                <label for="prompt">Describe the component you want to create:</label>
-                <textarea id="prompt" placeholder="E.g., A responsive pricing card with a title, price, features list, and a call-to-action button. It should have a hover effect and support dark mode."></textarea>
-            </div>
-            
-            <div class="input-group">
-                <label>Reference Image (Optional):</label>
-                <div class="image-preview" id="imagePreview">
-                    <div class="image-preview-placeholder" id="imagePlaceholder">
-                        Drag & drop an image here or click to upload
-                    </div>
-                </div>
-                <input type="file" id="imageUpload" accept="image/*" style="display: none;">
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Next.js Component Generator</title>
+    <style>
+        body { font-family: system-ui; padding: 20px; }
+        .container { max-width: 800px; margin: 0 auto; }
+        h1 { font-size: 24px; margin-bottom: 20px; }
+        .input-group { margin-bottom: 20px; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; }
+        textarea { width: 100%; height: 100px; padding: 8px; border: 1px solid #ccc; border-radius: 4px; }
+        button { background-color: #0078d4; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; margin-right: 10px; }
+        button:hover { background-color: #005a9e; }
+        .checkbox-group { margin-top: 10px; display: flex; align-items: center; }
+        .checkbox-group input { margin-right: 8px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Next.js Component Generator</h1>
+        
+        <div class="input-group">
+            <label for="prompt">Describe the component you want to create:</label>
+            <textarea id="prompt" placeholder="E.g., A responsive pricing card with a title, price, features list, and a call-to-action button."></textarea>
+        </div>
+        
+        <div class="checkbox-group">
+            <input type="checkbox" id="createFile" checked>
+            <label for="createFile">Create component file after generation</label>
+        </div>
+        
+        <div id="fileOptions" style="margin-top: 15px;">
+            <div class="checkbox-group">
+                <input type="checkbox" id="createStorybook">
+                <label for="createStorybook">Generate Storybook file</label>
             </div>
             
             <div class="checkbox-group">
-                <input type="checkbox" id="createFile" checked>
-                <label for="createFile">Create component file after generation</label>
+                <input type="checkbox" id="createMockData">
+                <label for="createMockData">Generate mock data file</label>
             </div>
-            
-            <div style="margin-top: 20px;">
-                <button id="generateBtn">Generate Component</button>
-                <button id="clearBtn">Clear</button>
-            </div>
-            
-            <div id="loading" class="loading">
-                Generating component... This may take a moment.
-            </div>
-            
-            <div id="error" class="error" style="display: none;"></div>
-            
-            <div id="result" class="result" style="display: none;"></div>
         </div>
         
-        <script>
-            (function() {
-                const vscode = acquireVsCodeApi();
-                
-                // Elements
-                const promptInput = document.getElementById('prompt');
-                const imagePreview = document.getElementById('imagePreview');
-                const imagePlaceholder = document.getElementById('imagePlaceholder');
-                const imageUpload = document.getElementById('imageUpload');
-                const generateBtn = document.getElementById('generateBtn');
-                const clearBtn = document.getElementById('clearBtn');
-                const createFileCheckbox = document.getElementById('createFile');
-                const loadingEl = document.getElementById('loading');
-                const resultEl = document.getElementById('result');
-                const errorEl = document.getElementById('error');
-                
-                let imageData = null;
-                
-                // Handle image upload via click
-                imagePreview.addEventListener('click', () => {
-                    if (!imageData) {
-                        imageUpload.click();
-                    }
-                });
-                
-                // Handle image upload
-                imageUpload.addEventListener('change', (event) => {
-                    const file = event.target.files[0];
-                    if (file) {
-                        const reader = new FileReader();
-                        reader.onload = (e) => {
-                            imageData = e.target.result;
-                            updateImagePreview();
-                        };
-                        reader.readAsDataURL(file);
-                    }
-                });
-                
-                // Handle drag and drop
-                imagePreview.addEventListener('dragover', (event) => {
-                    event.preventDefault();
-                    imagePreview.style.borderStyle = 'solid';
-                });
-                
-                imagePreview.addEventListener('dragleave', () => {
-                    imagePreview.style.borderStyle = 'dashed';
-                });
-                
-                imagePreview.addEventListener('drop', (event) => {
-                    event.preventDefault();
-                    imagePreview.style.borderStyle = 'dashed';
-                    
-                    const file = event.dataTransfer.files[0];
-                    if (file && file.type.startsWith('image/')) {
-                        const reader = new FileReader();
-                        reader.onload = (e) => {
-                            imageData = e.target.result;
-                            updateImagePreview();
-                        };
-                        reader.readAsDataURL(file);
-                    }
-                });
-                
-                // Update image preview
-                function updateImagePreview() {
-                    if (imageData) {
-                        imagePlaceholder.style.display = 'none';
-                        
-                        // Remove existing image if any
-                        const existingImg = imagePreview.querySelector('img');
-                        if (existingImg) {
-                            imagePreview.removeChild(existingImg);
-                        }
-                        
-                        // Remove existing remove button if any
-                        const existingBtn = imagePreview.querySelector('.remove-image');
-                        if (existingBtn) {
-                            imagePreview.removeChild(existingBtn);
-                        }
-                        
-                        // Add the image
-                        const img = document.createElement('img');
-                        img.src = imageData;
-                        imagePreview.appendChild(img);
-                        
-                        // Add remove button
-                        const removeBtn = document.createElement('button');
-                        removeBtn.className = 'remove-image';
-                        removeBtn.textContent = '×';
-                        removeBtn.addEventListener('click', (e) => {
-                            e.stopPropagation();
-                            imageData = null;
-                            updateImagePreview();
-                        });
-                        imagePreview.appendChild(removeBtn);
-                    } else {
-                        imagePlaceholder.style.display = 'block';
-                        
-                        // Remove existing image if any
-                        const existingImg = imagePreview.querySelector('img');
-                        if (existingImg) {
-                            imagePreview.removeChild(existingImg);
-                        }
-                        
-                        // Remove existing remove button if any
-                        const existingBtn = imagePreview.querySelector('.remove-image');
-                        if (existingBtn) {
-                            imagePreview.removeChild(existingBtn);
-                        }
-                    }
+        <div style="margin-top: 20px;">
+            <button id="generateBtn">Generate Component</button>
+            <button id="clearBtn">Clear</button>
+        </div>
+        
+        <div id="result" style="margin-top: 20px; white-space: pre-wrap; display: none;"></div>
+    </div>
+    
+    <script>
+        (function() {
+            const vscode = acquireVsCodeApi();
+            
+            // Elements
+            const promptInput = document.getElementById('prompt');
+            const generateBtn = document.getElementById('generateBtn');
+            const clearBtn = document.getElementById('clearBtn');
+            const createFileCheckbox = document.getElementById('createFile');
+            const fileOptionsEl = document.getElementById('fileOptions');
+            const createStorybookCheckbox = document.getElementById('createStorybook');
+            const createMockDataCheckbox = document.getElementById('createMockData');
+            const resultEl = document.getElementById('result');
+            
+            // Toggle file options visibility
+            createFileCheckbox.addEventListener('change', () => {
+                fileOptionsEl.style.display = createFileCheckbox.checked ? 'block' : 'none';
+            });
+            
+            // Generate component
+            generateBtn.addEventListener('click', () => {
+                const prompt = promptInput.value.trim();
+                if (!prompt) {
+                    alert('Please provide a description for the component.');
+                    return;
                 }
                 
-                // Generate component
-                generateBtn.addEventListener('click', () => {
-                    const prompt = promptInput.value.trim();
-                    if (!prompt) {
-                        showError('Please provide a description for the component.');
-                        return;
-                    }
-                    
-                    // Show loading state
-                    loadingEl.style.display = 'block';
-                    resultEl.style.display = 'none';
-                    errorEl.style.display = 'none';
-                    generateBtn.disabled = true;
-                    
-                    // Send message to extension
-                    vscode.postMessage({
-                        command: 'generateComponent',
-                        prompt: prompt,
-                        imageData: imageData,
-                        createFile: createFileCheckbox.checked
-                    });
+                // Send message to extension
+                vscode.postMessage({
+                    command: 'generateComponent',
+                    prompt: prompt,
+                    createFile: createFileCheckbox.checked,
+                    createStorybook: createStorybookCheckbox.checked,
+                    createMockData: createMockDataCheckbox.checked
                 });
                 
-                // Clear form
-                clearBtn.addEventListener('click', () => {
-                    promptInput.value = '';
-                    imageData = null;
-                    updateImagePreview();
-                    resultEl.style.display = 'none';
-                    errorEl.style.display = 'none';
-                });
+                generateBtn.disabled = true;
+                generateBtn.textContent = 'Generating...';
+            });
+            
+            // Clear form
+            clearBtn.addEventListener('click', () => {
+                promptInput.value = '';
+                resultEl.style.display = 'none';
+            });
+            
+            // Handle messages from the extension
+            window.addEventListener('message', (event) => {
+                const message = event.data;
                 
-                // Handle messages from the extension
-                window.addEventListener('message', (event) => {
-                    const message = event.data;
-                    
-                    switch (message.command) {
-                        case 'result':
-                            loadingEl.style.display = 'none';
-                            generateBtn.disabled = false;
-                            
-                            resultEl.textContent = message.result.fullResponse;
-                            resultEl.style.display = 'block';
-                            break;
-                            
-                        case 'error':
-                            loadingEl.style.display = 'none';
-                            generateBtn.disabled = false;
-                            showError(message.error);
-                            break;
-                    }
-                });
-                
-                function showError(message) {
-                    errorEl.textContent = message;
-                    errorEl.style.display = 'block';
+                switch (message.command) {
+                    case 'result':
+                        generateBtn.disabled = false;
+                        generateBtn.textContent = 'Generate Component';
+                        
+                        // Show result
+                        resultEl.textContent = message.result.fullResponse;
+                        resultEl.style.display = 'block';
+                        break;
+                        
+                    case 'error':
+                        generateBtn.disabled = false;
+                        generateBtn.textContent = 'Generate Component';
+                        alert('Error: ' + message.error);
+                        break;
                 }
-            }());
-        </script>
-    </body>
-    </html>`;
+            });
+        }());
+    </script>
+</body>
+</html>`;
 }
 
 function deactivate() {
