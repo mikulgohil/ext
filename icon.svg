@@ -1,0 +1,14 @@
+<svg width="128" height="128" viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background -->
+  <rect width="128" height="128" rx="16" fill="#000000"/>
+  
+  <!-- Next.js Logo (simplified) -->
+  <path d="M64 32L96 80H32L64 32Z" fill="#FFFFFF"/>
+  
+  <!-- OpenAI-inspired element -->
+  <circle cx="64" cy="64" r="24" stroke="#FFFFFF" stroke-width="4" fill="none"/>
+  
+  <!-- Code brackets -->
+  <path d="M40 96L32 88L40 80" stroke="#FFFFFF" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M88 96L96 88L88 80" stroke="#FFFFFF" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
